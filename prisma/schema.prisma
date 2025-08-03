@@ -1,0 +1,181 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/pms_mvp/app/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// Modelo de usuários com sistema de roles
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(RECEPCIONISTA)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // NextAuth required fields
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// Enum para roles de usuário
+enum UserRole {
+  ADMINISTRADOR
+  RECEPCIONISTA
+}
+
+// Modelo de quartos
+model Room {
+  id          String     @id @default(cuid())
+  number      String     @unique
+  name        String
+  type        RoomType
+  capacity    Int
+  status      RoomStatus @default(DISPONIVEL)
+  description String?
+  price       Decimal    @db.Decimal(10, 2)
+  amenities   String[]   @default([])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relacionamentos
+  reservations Reservation[]
+
+  @@map("rooms")
+}
+
+// Enum para tipos de quarto
+enum RoomType {
+  SOLTEIRO
+  CASAL
+  SUITE
+  FAMILIA
+  PRESIDENCIAL
+}
+
+// Enum para status do quarto
+enum RoomStatus {
+  DISPONIVEL
+  OCUPADO
+  MANUTENCAO
+  LIMPEZA
+  INDISPONIVEL
+}
+
+// Modelo de hóspedes
+model Guest {
+  id            String    @id @default(cuid())
+  name          String
+  email         String?   @unique
+  phone         String?
+  document      String?   @unique // CPF/RG/Passaporte
+  documentType  String?   // CPF, RG, PASSAPORTE
+  address       String?
+  city          String?
+  state         String?
+  zipCode       String?
+  country       String?   @default("Brasil")
+  birthDate     DateTime?
+  nationality   String?
+  emergencyContact String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relacionamentos
+  reservations Reservation[]
+
+  @@map("guests")
+}
+
+// Modelo de reservas
+model Reservation {
+  id              String            @id @default(cuid())
+  checkIn         DateTime
+  checkOut        DateTime
+  adults          Int               @default(1)
+  children        Int               @default(0)
+  totalPrice      Decimal           @db.Decimal(10, 2)
+  status          ReservationStatus @default(CONFIRMADA)
+  paymentStatus   PaymentStatus     @default(PENDENTE)
+  source          String?           // Canal de reserva (site, telefone, etc.)
+  notes           String?
+  specialRequests String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relacionamentos
+  guestId String
+  guest   Guest  @relation(fields: [guestId], references: [id])
+  roomId  String
+  room    Room   @relation(fields: [roomId], references: [id])
+
+  @@map("reservations")
+}
+
+// Enum para status da reserva
+enum ReservationStatus {
+  CONFIRMADA
+  CHECKIN
+  CHECKOUT
+  CANCELADA
+  NO_SHOW
+}
+
+// Enum para status de pagamento
+enum PaymentStatus {
+  PENDENTE
+  PARCIAL
+  PAGO
+  REEMBOLSADO
+}
