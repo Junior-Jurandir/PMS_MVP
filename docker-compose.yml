@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # Serviço PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: pms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pms_user
+      POSTGRES_PASSWORD: pms_password
+      POSTGRES_DB: pms_development
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - pms-network
+
+  # Serviço Redis (para cache e sessões)
+  redis:
+    image: redis:7-alpine
+    container_name: pms-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - pms-network
+
+  # Serviço Next.js
+  nextjs:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: pms-nextjs
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://pms_user:pms_password@postgres:5432/pms_development
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=development-secret-key-change-in-production
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - pms-network
+
+  # Serviço Prisma Studio (interface visual do banco)
+  prisma-studio:
+    image: node:18-alpine
+    container_name: pms-prisma-studio
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install -g prisma && npx prisma studio --port 5555"
+    ports:
+      - "5555:5555"
+    environment:
+      - DATABASE_URL=postgresql://pms_user:pms_password@postgres:5432/pms_development
+    volumes:
+      - .:/app
+    depends_on:
+      - postgres
+    networks:
+      - pms-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  pms-network:
+    driver: bridge

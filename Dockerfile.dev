@@ -1,0 +1,29 @@
+# Dockerfile para ambiente de desenvolvimento PMS-MVP
+FROM node:18-alpine
+
+# Instala dependências do sistema para PostgreSQL client
+RUN apk add --no-cache \
+    postgresql-client \
+    libc6-compat
+
+# Define diretório de trabalho
+WORKDIR /app
+
+# Copia arquivos de dependências
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Instala todas as dependências (incluindo dev)
+RUN npm ci
+
+# Copia o restante dos arquivos
+COPY . .
+
+# Gera cliente Prisma
+RUN npx prisma generate
+
+# Expõe porta padrão do Next.js
+EXPOSE 3000
+
+# Comando para desenvolvimento
+CMD ["npm", "run", "dev"]

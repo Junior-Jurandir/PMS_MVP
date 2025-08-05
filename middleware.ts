@@ -1,20 +1,31 @@
 
+import { NextResponse, type NextRequest } from "next/server";
 import { withAuth } from "next-auth/middleware";
 
 export default withAuth(
-  function middleware(req) {
-    // Middleware logic here if needed
+  function middleware(req: NextRequest) {
+    const token = req.nextauth?.token;
+    const isAuthPage = req.nextUrl.pathname.startsWith("/login");
+    
+    // Se o usuário está autenticado e tenta acessar a página de login,
+    // redirecionar para o dashboard
+    if (token && isAuthPage) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+    
+    // Se o usuário não está autenticado e tenta acessar uma rota protegida,
+    // redirecionar para login
+    if (!token && !isAuthPage) {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+    
+    return NextResponse.next();
   },
   {
     callbacks: {
-      authorized: ({ token, req }) => {
-        // Allow access to login page without authentication
-        if (req.nextUrl.pathname === "/login") {
-          return true;
-        }
-        
-        // For other protected routes, require authentication
-        return !!token;
+      authorized: ({ token }: { token: any }) => {
+        // Permitir que o middleware decida o redirecionamento
+        return true;
       },
     },
   }
